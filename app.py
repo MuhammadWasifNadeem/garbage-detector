@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import time
 from tensorflow.keras.utils import load_img, img_to_array
-import matplotlib.pyplot as plt
 import altair as alt
 from datetime import datetime
 import base64
@@ -43,43 +42,25 @@ st.sidebar.write("""
 st.sidebar.info("Supported formats: JPG, JPEG, PNG")
 
 # -----------------------------
-# ✅ Load TFLite GPU-optimized model
+# ✅ Load Standard Keras Model (.h5)
 # -----------------------------
 @st.cache_resource
-def load_tflite_model():
-    interpreter = tf.lite.Interpreter(model_path="best_trash_model.tflite")
-    interpreter.allocate_tensors()
-    return interpreter
+def load_model():
+    return tf.keras.models.load_model("best_trash_model.h5")
 
-interpreter = load_tflite_model()
-
-# Get input/output details
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+model = load_model()
 
 # Class labels
 class_labels = ['cardboard', 'glass', 'metal', 'paper', 'plastic', 'trash']
 
 # -----------------------------
-# ✅ Prediction Function (TFLite)
+# ✅ Prediction Function (Keras)
 # -----------------------------
-def predict_tflite(image):
+def predict(image):
     img = img_to_array(image) / 255.0
-    img = np.expand_dims(img, axis=0).astype(np.float32)
-
-    interpreter.set_tensor(input_details[0]['index'], img)
-    interpreter.invoke()
-    output = interpreter.get_tensor(output_details[0]['index'])
-
-    return output[0]
-
-# -----------------------------
-# ✅ Main App UI
-# -----------------------------
-st.title("♻️ Smart Trash Classification App")
-st.write("Upload an image and let the AI classify the waste type.")
-
-uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+    img = np.expand_dims(img, axis=0)
+    preds = model.predict(img)
+    return preds[0]
 
 # -----------------------------
 # ✅ Prediction Logging Setup
@@ -100,8 +81,13 @@ def log_prediction(filename, prediction, confidence):
     updated.to_csv(LOG_FILE, index=False)
 
 # -----------------------------
-# ✅ Handle Uploaded Image
+# ✅ Main App UI
 # -----------------------------
+st.title("♻️ Smart Trash Classification App")
+st.write("Upload an image and let the AI classify the waste type.")
+
+uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+
 if uploaded_file is not None:
     st.image(uploaded_file, caption="Uploaded Image", use_column_width=True)
 
@@ -115,7 +101,7 @@ if uploaded_file is not None:
     img = load_img(uploaded_file, target_size=(180, 180))
 
     # Predict
-    preds = predict_tflite(img)
+    preds = predict(img)
     pred_class = class_labels[np.argmax(preds)]
     confidence = float(np.max(preds) * 100)
 
